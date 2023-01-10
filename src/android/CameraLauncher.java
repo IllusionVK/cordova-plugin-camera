@@ -23,6 +23,7 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -121,6 +122,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private boolean correctOrientation;     // Should the pictures orientation be corrected
     private boolean orientationCorrected;   // Has the picture's orientation been corrected
     private boolean allowEdit;              // Should we allow the user to crop the image.
+    private boolean preview;
+    private boolean showPhotoLibrary;
 
     protected final static String[] permissions = { Manifest.permission.CAMERA, Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE };
 
@@ -160,6 +163,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             this.encodingType = JPEG;
             this.mediaType = PICTURE;
             this.mQuality = 50;
+            this.preview = true;
+            this.showPhotoLibrary = true;
 
             //Take the values from the arguments if they're not already defined (this is tricky)
             this.destType = args.getInt(1);
@@ -172,6 +177,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             this.allowEdit = args.getBoolean(7);
             this.correctOrientation = args.getBoolean(8);
             this.saveToPhotoAlbum = args.getBoolean(9);
+            this.preview = args.getBoolean(12);
+            this.showPhotoLibrary = args.getBoolean(13);
 
             // If the user specifies a 0 or smaller width/height
             // make it -1 so later comparisons succeed
@@ -273,10 +280,14 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         }
 
         if (takePicturePermission && saveAlbumPermission) {
-            takePicture(returnType, encodingType);
-        } else if (saveAlbumPermission) {
+            cordova.getThreadPool().execute(new Runnable() {
+              public void run() {
+                takePicture(returnType, encodingType);
+              }
+            });
+        } else if (saveAlbumPermission && !takePicturePermission) {
             PermissionHelper.requestPermission(this, TAKE_PIC_SEC, Manifest.permission.CAMERA);
-        } else if (takePicturePermission) {
+        } else if (!saveAlbumPermission && takePicturePermission) {
             PermissionHelper.requestPermissions(this, TAKE_PIC_SEC,
                     new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE});
         } else {
@@ -289,33 +300,39 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         // Save the number of images currently on disk for later
         this.numPics = queryImgDB(whichContentStore()).getCount();
 
-        // Let's use the intent and see what happens
-        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-
         // Specify file so that large image is captured and returned
         File photo = createCaptureFile(encodingType);
         this.imageFilePath = photo.getAbsolutePath();
         this.imageUri = FileProvider.getUriForFile(cordova.getActivity(),
-                applicationId + ".cordova.plugin.camera.provider",
-                photo);
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
-        //We can write to this URI, this will hopefully allow us to write files to get to the next step
-        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+          applicationId + ".cordova.plugin.camera.provider",
+          photo);
 
-        if (this.cordova != null) {
+        if (!this.preview) {
+          Context context = cordova.getActivity().getApplicationContext();
+          Intent intent = new Intent(context, CameraViewActivity.class);
+          intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+          intent.putExtra("imageFilePath", imageFilePath);
+          intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+
+          cordova.setActivityResultCallback(this);
+          this.cordova.getActivity().startActivityForResult(intent, (CAMERA + 1) * 16 + returnType + 1);
+        } else {
+          // Let's use the intent and see what happens
+          Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+          intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+          //We can write to this URI, this will hopefully allow us to write files to get to the next step
+          intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+
+          if (this.cordova != null) {
             // Let's check to make sure the camera is actually installed. (Legacy Nexus 7 code)
             PackageManager mPm = this.cordova.getActivity().getPackageManager();
-            if(intent.resolveActivity(mPm) != null)
-            {
-                this.cordova.startActivityForResult((CordovaPlugin) this, intent, (CAMERA + 1) * 16 + returnType + 1);
+            if(intent.resolveActivity(mPm) != null) {
+              this.cordova.startActivityForResult((CordovaPlugin) this, intent, (CAMERA + 1) * 16 + returnType + 1);
+            } else {
+              LOG.d(LOG_TAG, "Error: You don't have a default camera.  Your device may not be CTS complaint.");
             }
-            else
-            {
-                LOG.d(LOG_TAG, "Error: You don't have a default camera.  Your device may not be CTS complaint.");
-            }
+          }
         }
-//        else
-//            LOG.d(LOG_TAG, "ERROR: You must use the CordovaInterface for this to work correctly. Please implement it in your activity");
     }
 
     /**
