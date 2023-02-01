@@ -312,6 +312,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
           Intent intent = new Intent(context, CameraViewActivity.class);
           intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
           intent.putExtra("imageFilePath", imageFilePath);
+          intent.putExtra("imageUri", imageUri);
           intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
           cordova.setActivityResultCallback(this);
@@ -821,6 +822,12 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         // Get src and dest types from request code for a Camera Activity
         int srcType = (requestCode / 16) - 1;
         int destType = (requestCode % 16) - 1;
+
+        int reqCode = intent.getIntExtra("reqCode", 0);
+        if (reqCode != 0) {
+          srcType = (reqCode / 16) - 1;
+          destType = (reqCode % 16) - 1;
+        }
 
         // If Camera Crop
         if (requestCode >= CROP_CAMERA) {

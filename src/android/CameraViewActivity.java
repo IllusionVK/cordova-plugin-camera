@@ -10,6 +10,7 @@ import android.graphics.Color;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraManager;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
@@ -23,8 +24,11 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 
+import org.apache.cordova.LOG;
+
 public class CameraViewActivity extends Activity {
     private static final String LOG_TAG = "CameraViewActivity";
+    private static final int PHOTOLIBRARY = 18;
     private int flashMode = 0;
 
     private int dpToPixels(int dipValue) {
@@ -147,6 +151,47 @@ public class CameraViewActivity extends Activity {
         }
       });
       topToolbar.addView(flashButton);
+
+      ImageButton libButton = new ImageButton(this);
+      RelativeLayout.LayoutParams libLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(44), this.dpToPixels(44));
+      libLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+      libLayoutParams.setMargins(this.dpToPixels(10), 0, 0, 0);
+      libButton.setLayoutParams(libLayoutParams);
+      libButton.setContentDescription("Lib Button");
+      libButton.setId(Integer.valueOf(6));
+      libButton.setBackground(null);
+      libButton.setImageDrawable(activityRes.getDrawable(
+        activityRes.getIdentifier("ic_action_photo_lib", "drawable", packageName),
+        null));
+      libButton.setScaleType(ImageView.ScaleType.FIT_CENTER);
+      libButton.getAdjustViewBounds();
+      libButton.setOnTouchListener(new View.OnTouchListener() {
+        @Override
+        public boolean onTouch(View view, MotionEvent event) {
+          switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+              libButton.setColorFilter(Color.GRAY, android.graphics.PorterDuff.Mode.SRC_IN);
+              return false;
+            case MotionEvent.ACTION_UP:
+              libButton.setColorFilter(Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN);
+              return false;
+          }
+          return false;
+        }
+      });
+      libButton.setOnClickListener(new View.OnClickListener() {
+        public void onClick(View v) {
+          String imageUri = getIntent().getStringExtra("requestCode");
+          Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+          intent.setType("image/*");
+          intent.setAction(Intent.ACTION_GET_CONTENT);
+          intent.addCategory(Intent.CATEGORY_OPENABLE);
+          intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+          intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+          startActivityForResult(Intent.createChooser(intent, "Select Picture"), PHOTOLIBRARY);
+        }
+      });
+      topToolbar.addView(libButton);
 
       ImageButton closeButton = new ImageButton(this);
       RelativeLayout.LayoutParams closeLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(44), this.dpToPixels(44));
@@ -280,4 +325,17 @@ public class CameraViewActivity extends Activity {
       main.addView(toolbar);
       main.addView(topToolbar);
     }
+
+  public void onActivityResult(int requestCode, int resultCode, Intent intent) {
+    if (requestCode == PHOTOLIBRARY) {
+      if (resultCode == Activity.RESULT_OK && intent != null) {
+        intent.putExtra("reqCode", PHOTOLIBRARY);
+        setResult(Activity.RESULT_OK, intent);
+        finish();
+      } else {
+        setResult(Activity.RESULT_CANCELED);
+        finish();
+      }
+    }
+  }
 }
