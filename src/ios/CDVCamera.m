@@ -171,6 +171,8 @@ static NSString* toBase64(NSData* data) {
         pictureOptions.popoverSupported = [weakSelf popoverSupported];
         pictureOptions.usesGeolocation = [weakSelf usesGeolocation];
         pictureOptions.cropToSize = NO;
+        
+        NSLog(@"Start takePicture with source type: %lu", (unsigned long)pictureOptions.sourceType);
 
         BOOL hasCamera = [UIImageNRPickerController isSourceTypeAvailable:pictureOptions.sourceType];
         if (!hasCamera) {
@@ -292,6 +294,7 @@ static NSString* toBase64(NSData* data) {
                 self.photoLibraryBtn = [UIButton buttonWithType:UIButtonTypeCustom];
                 [self.photoLibraryBtn setImage:[UIImage imageNamed:@"ic_photo_library_white_48pt"] forState:UIControlStateNormal];
                 [self.photoLibraryBtn addTarget:self action:@selector(openPhotoAlbumButtonWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+                self.photoLibraryBtn.hidden = YES;
                 [overlayView addSubview:self.photoLibraryBtn];
             }
 
@@ -300,10 +303,12 @@ static NSString* toBase64(NSData* data) {
             [self.cancelBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
             [self.cancelBtn.titleLabel setFont:[UIFont systemFontOfSize:18]];
             [self.cancelBtn addTarget:self action:@selector(cancelButtonWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+            self.cancelBtn.hidden = YES;
             [overlayView addSubview:self.cancelBtn];
             
             self.takePhotoBtn = [JPSCameraButton buttonWithType:UIButtonTypeRoundedRect];
             [self.takePhotoBtn addTarget:self action:@selector(takePhotoButtonWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+            self.takePhotoBtn.hidden = YES;
             [overlayView addSubview:self.takePhotoBtn];
             
             if ([UIImagePickerController isCameraDeviceAvailable:UIImagePickerControllerCameraDeviceFront] &&
@@ -344,10 +349,16 @@ static NSString* toBase64(NSData* data) {
             }
             [self displayPopover:pictureOptions.popoverOptions];
             self.hasPendingOperation = NO;
+            self.cancelBtn.hidden = NO;
+            self.takePhotoBtn.hidden = NO;
+            self.photoLibraryBtn.hidden = NO;
         } else {
             cameraPicker.modalPresentationStyle = UIModalPresentationCurrentContext;
             [self.viewController presentViewController:cameraPicker animated:YES completion:^{
                 self.hasPendingOperation = NO;
+                self.cancelBtn.hidden = NO;
+                self.takePhotoBtn.hidden = NO;
+                self.photoLibraryBtn.hidden = NO;
             }];
         }
     });
@@ -562,6 +573,11 @@ static NSString* toBase64(NSData* data) {
         NSString* callbackId = self.pickerController.callbackId;
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"no image selected"];   // error callback expects string ATM
         [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+
+        self.hasPendingOperation = NO;
+        self.pickerController = nil;
+        self.data = nil;
+        self.metadata = nil;
     };
 
     [[cameraPicker presentingViewController] dismissViewControllerAnimated:YES completion:invoke];
@@ -767,7 +783,7 @@ static NSString* toBase64(NSData* data) {
                         }
                         [[self locationManager] startUpdatingLocation];
                     }
-                data = nil;
+                // data = nil;
                 }
             } else if (pickerController.sourceType == UIImagePickerControllerSourceTypePhotoLibrary) {
                 PHAsset* asset = [info objectForKey:@"UIImagePickerControllerPHAsset"];
@@ -1020,7 +1036,7 @@ static NSString* toBase64(NSData* data) {
         NSString* mediaType = [info objectForKey:UIImagePickerControllerMediaType];
         if ([mediaType isEqualToString:(NSString*)kUTTypeImage]) {
             [weakSelf resultForImage:cameraPicker.pictureOptions info:info completion:^(CDVPluginResult* res) {
-                if (![self usesGeolocation] || picker.sourceType != UIImagePickerControllerSourceTypeCamera) {
+                if (![weakSelf usesGeolocation] || picker.sourceType != UIImagePickerControllerSourceTypeCamera) {
                     [weakSelf.commandDelegate sendPluginResult:res callbackId:cameraPicker.callbackId];
                     weakSelf.hasPendingOperation = NO;
                     if (!weakSelf.selectingFromLibrary) {
@@ -1072,12 +1088,14 @@ static NSString* toBase64(NSData* data) {
         CDVPluginResult* result;
         if (picker.sourceType == UIImagePickerControllerSourceTypeCamera && [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo] != AVAuthorizationStatusAuthorized) {
             result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"has no access to camera"];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:cameraPicker.callbackId];
         } else {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No Image Selected"];
+        //    Do not respond if user clicks the cancel button on the photo selection dialog
+        //    result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No Image Selected"];
         }
 
 
-        [weakSelf.commandDelegate sendPluginResult:result callbackId:cameraPicker.callbackId];
+    //    [weakSelf.commandDelegate sendPluginResult:result callbackId:cameraPicker.callbackId];
 
         weakSelf.hasPendingOperation = NO;
         if (!weakSelf.selectingFromLibrary) {
@@ -1274,6 +1292,10 @@ static NSString* toBase64(NSData* data) {
     }
 
     return cameraPicker;
+}
+
+- (void)dealloc {
+  NSLog(@"dealloc ...");
 }
 
 @end
