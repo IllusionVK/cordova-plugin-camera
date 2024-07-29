@@ -823,12 +823,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         int srcType = (requestCode / 16) - 1;
         int destType = (requestCode % 16) - 1;
 
-        int reqCode = intent.getIntExtra("reqCode", 0);
-        if (reqCode != 0) {
-          srcType = (reqCode / 16) - 1;
-          destType = (reqCode % 16) - 1;
-        }
-
         // If Camera Crop
         if (requestCode >= CROP_CAMERA) {
             if (resultCode == Activity.RESULT_OK) {
