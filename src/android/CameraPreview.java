@@ -3,36 +3,26 @@ package org.apache.cordova.camera;
 import android.content.Context;
 import android.util.TypedValue;
 import android.view.Display;
-import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import android.hardware.camera2.CameraManager;
 
 public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback {
+  private static final String LOG_TAG = "CameraPreview";
+
   private SurfaceHolder mHolder;
   private CameraController cameraController;
   private int viewWidth;
   private int viewHeight;
+  private Display display;
 
-  public CameraPreview(Context context, CameraManager cameraManager, Display display) {
+  public CameraPreview(Context context, CameraManager cameraManager, Display d, int w, int h) {
     super(context);
 
-    int rotation = display.getRotation();
-
-    // If vertical, we fill 2/3 the height and all the width. If horizontal,
-    // fill the entire height and 2/3 the width
-    if (rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180) {
-      int screenWidth = display.getWidth();
-      int screenHeight = display.getHeight();
-      viewHeight = 2 *  (screenHeight / 3);
-      viewWidth = screenWidth;
-    } else {
-      int screenWidth = display.getWidth();
-      int screenHeight = display.getHeight();
-      viewWidth = 2 * (screenWidth / 3);
-      viewHeight = screenHeight;
-    }
+    display = d;
+    viewWidth = w;
+    viewHeight = h;
 
     // Install a SurfaceHolder.Callback so we get notified when the
     // underlying surface is created and destroyed.
@@ -63,7 +53,7 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
     }
   }
 
-  private int dpToPixels(int dipValue) {
+  public int dpToPixels(int dipValue) {
     int value = (int)TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP,
       (float)dipValue,
       this.getResources().getDisplayMetrics()
@@ -75,9 +65,15 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
   @Override
   public void onLayout(boolean changed, int left, int top, int right, int bottom) {
     if (changed) {
-      int marginTop = this.dpToPixels(44);
-      (this).layout(0, marginTop, viewWidth, viewHeight + marginTop);
+      (this).layout(0, 0, viewWidth, viewHeight);
     }
+  }
+
+  public void setSize(int w, int h) {
+    viewWidth = w;
+    viewHeight = h;
+
+    (this).layout(0, 0, viewWidth, viewHeight);
   }
 
   public int getViewWidth() {

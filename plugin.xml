@@ -86,7 +86,7 @@
         </config-file>
 
         <config-file target="AndroidManifest.xml" parent="/manifest/application">
-            <activity android:label="CameraViewActivity" android:name="org.apache.cordova.camera.CameraViewActivity"></activity>
+            <activity android:configChanges="orientation|screenSize" android:label="CameraViewActivity" android:name="org.apache.cordova.camera.CameraViewActivity"></activity>
         </config-file>
 
         <source-file src="src/android/CameraController.java" target-dir="src/org/apache/cordova/camera" />
