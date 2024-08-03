@@ -313,6 +313,7 @@ public class CameraViewActivity extends Activity {
       });
       libButton.setOnClickListener(new View.OnClickListener() {
         public void onClick(View v) {
+          CameraLauncher.isLibButtonClicked = true;
           String imageUri = getIntent().getStringExtra("requestCode");
           Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
           intent.setType("image/*");

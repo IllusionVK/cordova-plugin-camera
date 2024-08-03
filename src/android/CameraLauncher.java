@@ -109,6 +109,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
     private static final String TIME_FORMAT = "yyyyMMdd_HHmmss";
 
+    public static boolean isLibButtonClicked = false;
+
     private int mQuality;                   // Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
     private int targetWidth;                // desired width of the image
     private int targetHeight;               // desired height of the image
@@ -152,7 +154,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         //This allows us to not make this a breaking change to embedding
         this.applicationId = cordova.getContext().getPackageName();
         this.applicationId = preferences.getString("applicationId", this.applicationId);
-
+        CameraLauncher.isLibButtonClicked = false;
 
         if (action.equals(TAKE_PICTURE_ACTION)) {
             this.srcType = CAMERA;
@@ -824,6 +826,10 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         // Get src and dest types from request code for a Camera Activity
         int srcType = (requestCode / 16) - 1;
         int destType = (requestCode % 16) - 1;
+
+        if (CameraLauncher.isLibButtonClicked) {
+          srcType = PHOTOLIBRARY;
+        }
 
         // If Camera Crop
         if (requestCode >= CROP_CAMERA) {
