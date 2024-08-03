@@ -58,6 +58,19 @@ public class CameraViewActivity extends Activity {
       return value;
     }
 
+    private void calculateCameraSizes(Display display) {
+      int screenWidth = display.getWidth();
+      int screenHeight = display.getHeight();
+
+      if (screenWidth <= screenHeight) {
+        viewHeight = (screenWidth * 4) / 3;
+        viewWidth = screenWidth;
+      } else {
+        viewWidth = (screenHeight * 4) / 3;
+        viewHeight = screenHeight;
+      }
+    }
+
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
@@ -67,17 +80,7 @@ public class CameraViewActivity extends Activity {
         int height = metrics.heightPixels;
         int width = metrics.widthPixels;
 
-        if (rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180) {
-          int screenWidth = display.getWidth();
-          int screenHeight = display.getHeight();
-          viewHeight = 2 * (screenHeight / 3);
-          viewWidth = screenWidth;
-        } else {
-          int screenWidth = display.getWidth();
-          int screenHeight = display.getHeight();
-          viewWidth = 2 * (screenWidth / 3);
-          viewHeight = screenHeight;
-        }
+        calculateCameraSizes(display);
 
         cameraView.getLayoutParams().width = viewWidth;
         cameraView.getLayoutParams().height = viewHeight;
@@ -190,19 +193,8 @@ public class CameraViewActivity extends Activity {
 
       CameraManager cameraManager = (CameraManager)this.getSystemService(Context.CAMERA_SERVICE);
       Display display = this.getWindowManager().getDefaultDisplay();
-      int rotation = display.getRotation();
-
-      if (rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180) {
-        int screenWidth = display.getWidth();
-        int screenHeight = display.getHeight();
-        viewHeight = 2 * (screenHeight / 3);
-        viewWidth = screenWidth;
-      } else {
-        int screenWidth = display.getWidth();
-        int screenHeight = display.getHeight();
-        viewWidth = 2 * (screenWidth / 3);
-        viewHeight = screenHeight;
-      }
+      
+      calculateCameraSizes(display);
 
       cameraPreview = new CameraPreview(this, cameraManager, display, viewWidth, viewHeight);
       cameraPreview.setId(Integer.valueOf(1));
