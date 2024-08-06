@@ -58,12 +58,14 @@ public class CameraViewActivity extends Activity {
       return value;
     }
 
-    private void calculateCameraSizes(Display display) {
-      int screenWidth = display.getWidth();
-      int screenHeight = display.getHeight();
+    private void calculateCameraSizes() {
+      DisplayMetrics displayMetrics = new DisplayMetrics();
+      this.getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+      int screenWidth = displayMetrics.widthPixels;
+      int screenHeight = displayMetrics.heightPixels;
 
       if (screenWidth <= screenHeight) {
-        viewHeight = (screenWidth * 4) / 3;
+        viewHeight = Math.min((screenWidth * 4) / 3, screenHeight - this.dpToPixels(48));
         viewWidth = screenWidth;
       } else {
         viewWidth = (screenHeight * 4) / 3;
@@ -80,7 +82,7 @@ public class CameraViewActivity extends Activity {
         int height = metrics.heightPixels;
         int width = metrics.widthPixels;
 
-        calculateCameraSizes(display);
+        calculateCameraSizes();
 
         cameraView.getLayoutParams().width = viewWidth;
         cameraView.getLayoutParams().height = viewHeight;
@@ -103,9 +105,21 @@ public class CameraViewActivity extends Activity {
           libLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
           libLayoutParams.setMargins(0, 0, this.dpToPixels(10), 0);
 
-          int buttonsLayoutHeight = height - cameraPreview.getViewHeight() - this.dpToPixels(50);
-          toolbar.getLayoutParams().height = buttonsLayoutHeight;
-          toolbar.getLayoutParams().width = RelativeLayout.LayoutParams.MATCH_PARENT;
+          int dp50 = this.dpToPixels(50);
+          int dp100 = this.dpToPixels(100);
+          int buttonsLayoutHeight = height - cameraPreview.getViewHeight() - dp50;
+
+          if (buttonsLayoutHeight > dp100) {
+            toolbar.getLayoutParams().height = buttonsLayoutHeight;
+            toolbar.getLayoutParams().width = RelativeLayout.LayoutParams.MATCH_PARENT;
+          } else {
+            LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
+              WindowManager.LayoutParams.MATCH_PARENT,
+              dp100
+            );
+            layoutParams.topMargin = -dp100 - this.dpToPixels(20);
+            toolbar.setLayoutParams(layoutParams);
+          }
 
           toolbar.setPadding(this.dpToPixels(2), this.dpToPixels(2),
             this.dpToPixels(2), this.dpToPixels(20));
@@ -142,9 +156,22 @@ public class CameraViewActivity extends Activity {
           libLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
           libLayoutParams.setMargins(0, this.dpToPixels(10), 0, 0);
 
-          int buttonsLayoutW = width - cameraPreview.getViewWidth() - this.dpToPixels(50);
-          toolbar.getLayoutParams().width = buttonsLayoutW;
-          toolbar.getLayoutParams().height = RelativeLayout.LayoutParams.MATCH_PARENT;
+          int dp50 = this.dpToPixels(50);
+          int dp100 = this.dpToPixels(100);
+          int buttonsLayoutW = width - cameraPreview.getViewWidth() - dp50;
+
+          if (buttonsLayoutW > dp100) {
+            toolbar.getLayoutParams().width = buttonsLayoutW;
+            toolbar.getLayoutParams().height = RelativeLayout.LayoutParams.MATCH_PARENT;
+          } else {
+            LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
+              dp100,
+              WindowManager.LayoutParams.MATCH_PARENT
+              );
+            layoutParams.rightMargin = -dp100 - this.dpToPixels(20);
+            toolbar.setLayoutParams(layoutParams);
+          }
+
           toolbar.setVerticalGravity(Gravity.TOP);
           toolbar.setHorizontalGravity(Gravity.RIGHT);
           toolbar.setPadding(this.dpToPixels(2), this.dpToPixels(2),
@@ -193,8 +220,8 @@ public class CameraViewActivity extends Activity {
 
       CameraManager cameraManager = (CameraManager)this.getSystemService(Context.CAMERA_SERVICE);
       Display display = this.getWindowManager().getDefaultDisplay();
-      
-      calculateCameraSizes(display);
+
+      calculateCameraSizes();
 
       cameraPreview = new CameraPreview(this, cameraManager, display, viewWidth, viewHeight);
       cameraPreview.setId(Integer.valueOf(1));
@@ -319,11 +346,24 @@ public class CameraViewActivity extends Activity {
       topToolbar.addView(libButton);
 
       toolbar = new RelativeLayout(this);
-      int buttonsLayoutHeight = height - cameraPreview.getViewHeight() - this.dpToPixels(50);
-      RelativeLayout.LayoutParams layoutParams = new RelativeLayout.LayoutParams(
-        WindowManager.LayoutParams.MATCH_PARENT,
-        buttonsLayoutHeight
-      );
+      int dp50 = this.dpToPixels(50);
+      int dp100 = this.dpToPixels(100);
+      int buttonsLayoutHeight = height - cameraPreview.getViewHeight() - dp50;
+      RelativeLayout.LayoutParams layoutParams;
+
+      if (buttonsLayoutHeight > dp100) {
+        layoutParams = new RelativeLayout.LayoutParams(
+          WindowManager.LayoutParams.MATCH_PARENT,
+          buttonsLayoutHeight
+        );
+      } else {
+        layoutParams = new RelativeLayout.LayoutParams(
+          WindowManager.LayoutParams.MATCH_PARENT,
+          dp100
+        );
+        layoutParams.topMargin = -dp100 - this.dpToPixels(20);
+      }
+
       layoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, RelativeLayout.TRUE);
       toolbar.setLayoutParams(layoutParams);
       toolbar.setPadding(this.dpToPixels(2), this.dpToPixels(2),
