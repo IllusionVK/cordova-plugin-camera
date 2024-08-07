@@ -98,7 +98,6 @@ public class CameraController {
             cameraDevice.close();
 
             CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(ids[i]);
-            int cameraDirection = characteristics.get(CameraCharacteristics.LENS_FACING);
             // Check if the flash is supported.
             Boolean available = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
             mFlashSupported = available == null ? false : available;
@@ -180,6 +179,9 @@ public class CameraController {
       CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
       captureBuilder.addTarget(reader.getSurface());
 
+      Log.e(TAG, "mFlashMode: " + mAutoFocusSupported);
+      Log.e(TAG, "mFlashMode: " + mFlashMode);
+
       if (mAutoFocusSupported) {
         // Use the same AE and AF modes as the preview.
         captureBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO);
@@ -195,7 +197,7 @@ public class CameraController {
             break;
           case 1://FLASH_ON
             captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON_ALWAYS_FLASH);
-            captureBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_SINGLE);
+            captureBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
             break;
           case -1://FLASH_OFF
             captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON);
