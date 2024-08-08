@@ -76,13 +76,9 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
     (this).layout(0, 0, viewWidth, viewHeight);
   }
 
-  public int getViewWidth() {
-    return viewWidth;
-  }
+  public int getViewWidth() { return viewWidth; }
 
-  public int getViewHeight() {
-    return viewWidth;
-  }
+  public int getViewHeight() { return viewHeight; }
 
   public void takePicture(String imageFilePath, TakePictureCallback callback) {
     this.cameraController.takePicture(imageFilePath, callback);
