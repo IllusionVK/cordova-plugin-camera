@@ -50,6 +50,15 @@ public class CameraViewActivity extends Activity {
   private ImageButton takeButton;
   private ImageButton flipButton;
 
+  private int dp2 = 0;
+  private int dp10 = 0;
+  private int dp25 = 0;
+  private int dp44 = 0;
+  private int dp50 = 0;
+  private int dp64 = 0;
+  private int dp96 = 0;
+  private int dp100 = 0;
+
   private int dpToPixels(int dipValue) {
     int value = (int)TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP,
       (float)dipValue,
@@ -103,11 +112,16 @@ public class CameraViewActivity extends Activity {
     }
 
     if (screenWidth <= screenHeight) {
-      viewHeight = Math.min((screenWidth * 4) / 3, screenHeight - this.dpToPixels(48));
+      viewHeight = (screenWidth * 4) / 3;
       viewWidth = screenWidth;
     } else {
       viewWidth = (screenHeight * 4) / 3;
       viewHeight = screenHeight;
+
+      if (viewWidth > screenWidth) {
+        viewWidth = screenWidth;
+        viewHeight = (viewWidth * 4) / 3;
+      }
     }
   }
 
@@ -126,105 +140,124 @@ public class CameraViewActivity extends Activity {
     DisplayMetrics metrics = this.getResources().getDisplayMetrics();
     int height = metrics.heightPixels;
     int width = metrics.widthPixels;
-    int dp50 = this.dpToPixels(50);
-    int dp100 = this.dpToPixels(100);
-    boolean useVerticalLayout = false;
+    int topMargin = 0;
+    int leftMargin = 0;
 
     calculateCameraSizes();
 
-    cameraView.getLayoutParams().width = viewWidth;
-    cameraView.getLayoutParams().height = viewHeight;
+    if (rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180) {
+      int maxH = height - dp50 - dp100;
+
+      if (viewHeight < maxH) {
+        topMargin = dp50;
+      }
+    } else {
+      int maxW = width - dp50 - dp100;
+
+      if (viewWidth < maxW) {
+        leftMargin = dp50;
+      }
+    }
+
+    LinearLayout.LayoutParams cameraLayoutParams = new LinearLayout.LayoutParams(
+      viewWidth,
+      viewHeight
+    );
+    cameraLayoutParams.topMargin = topMargin;
+    cameraLayoutParams.leftMargin = leftMargin;
+    cameraView.setLayoutParams(cameraLayoutParams);
+    cameraView.setVerticalGravity(Gravity.TOP);
+    cameraView.setHorizontalGravity(Gravity.LEFT);
     cameraPreview.setSize(viewWidth, viewHeight);
 
     Log.d(LOG_TAG, "rotation: " + rotation);
 
-    if (rotation != Surface.ROTATION_0 && rotation != Surface.ROTATION_180) {
-      int buttonsLayoutW = width - cameraPreview.getViewWidth() - dp50;
-
-      if (buttonsLayoutW < dp100) {
-        useVerticalLayout = true;
-      }
-    }
-
-    if (useVerticalLayout || rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180) {
+    if (rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180) {
       main.setOrientation(LinearLayout.VERTICAL);
 
-      topToolbar.getLayoutParams().width = RelativeLayout.LayoutParams.MATCH_PARENT;
-      topToolbar.getLayoutParams().height = dp50;
-      topToolbar.requestLayout();
+      LinearLayout.LayoutParams topToolbarParams = new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        dp50
+      );
+      topToolbarParams.topMargin = -(viewHeight + topMargin);
+      topToolbar.setBackgroundColor(Color.TRANSPARENT);
+      topToolbar.setLayoutParams(topToolbarParams);
       topToolbar.setVerticalGravity(Gravity.CENTER_VERTICAL);
       topToolbar.setHorizontalGravity(Gravity.LEFT);
+      topToolbar.bringToFront();
 
-      RelativeLayout.LayoutParams flashLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(44), this.dpToPixels(44));
+      RelativeLayout.LayoutParams flashLayoutParams = new RelativeLayout.LayoutParams(dp44, dp44);
       flashLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
-      flashLayoutParams.setMargins(this.dpToPixels(10), 0, 0, 0);
+      flashLayoutParams.setMargins(dp10, 0, 0, 0);
       flashButton.setLayoutParams(flashLayoutParams);
 
-      RelativeLayout.LayoutParams libLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(44), this.dpToPixels(44));
+      RelativeLayout.LayoutParams libLayoutParams = new RelativeLayout.LayoutParams(dp44, dp44);
       libLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-      libLayoutParams.setMargins(0, 0, this.dpToPixels(10), 0);
+      libLayoutParams.setMargins(0, 0, dp10, 0);
       libButton.setLayoutParams(libLayoutParams);
 
-      int buttonsLayoutHeight = height - cameraPreview.getViewHeight() - dp50;
-
-      if (buttonsLayoutHeight > dp100) {
-        toolbar.getLayoutParams().height = buttonsLayoutHeight;
-        toolbar.getLayoutParams().width = RelativeLayout.LayoutParams.MATCH_PARENT;
-      } else {
-        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
-          WindowManager.LayoutParams.MATCH_PARENT,
-          dp100
-        );
-        layoutParams.topMargin = (height - (cameraPreview.getViewHeight() + this.dpToPixels(48))) - dp100;
-        toolbar.setLayoutParams(layoutParams);
-      }
-
+      LinearLayout.LayoutParams toolbarLayoutParams = new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        dp100
+      );
+      toolbarLayoutParams.topMargin = height - dp100 - dp25 - topMargin;
+      toolbar.setLayoutParams(toolbarLayoutParams);
+      toolbar.setPadding(dp2, dp10, dp2, dp2);
       toolbar.setVerticalGravity(Gravity.CENTER_VERTICAL);
-      toolbar.setHorizontalGravity(Gravity.BOTTOM);
+      toolbar.setHorizontalGravity(Gravity.TOP);
+      toolbar.bringToFront();
 
-      RelativeLayout.LayoutParams closeLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(44), this.dpToPixels(44));
+      RelativeLayout.LayoutParams closeLayoutParams = new RelativeLayout.LayoutParams(dp44, dp44);
       closeLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
-      closeLayoutParams.setMargins(this.dpToPixels(10), this.dpToPixels(20), 0, 0);
+      closeLayoutParams.setMargins(dp10, this.dpToPixels(20), 0, 0);
       closeButton.setLayoutParams(closeLayoutParams);
 
       if (flipButton != null) {
-        RelativeLayout.LayoutParams flipLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(64), this.dpToPixels(64));
+        RelativeLayout.LayoutParams flipLayoutParams = new RelativeLayout.LayoutParams(dp64, dp64);
         flipLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
         flipLayoutParams.setMargins(0, this.dpToPixels(15), this.dpToPixels(5), 0);
         flipButton.setLayoutParams(flipLayoutParams);
       }
 
-      RelativeLayout.LayoutParams takeLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(96), this.dpToPixels(96));
+      RelativeLayout.LayoutParams takeLayoutParams = new RelativeLayout.LayoutParams(dp96, dp96);
       takeLayoutParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
       takeButton.setLayoutParams(takeLayoutParams);
     } else {
       main.setOrientation(LinearLayout.HORIZONTAL);
 
-      topToolbar.getLayoutParams().width = dp50;
-      topToolbar.getLayoutParams().height = RelativeLayout.LayoutParams.MATCH_PARENT;
-      topToolbar.requestLayout();
+      LinearLayout.LayoutParams topToolbarParams = new LinearLayout.LayoutParams(
+        dp50,
+        LinearLayout.LayoutParams.MATCH_PARENT
+      );
+      topToolbarParams.leftMargin = -(viewWidth + leftMargin);
+      topToolbar.setBackgroundColor(Color.TRANSPARENT);
+      topToolbar.setLayoutParams(topToolbarParams);
       topToolbar.setVerticalGravity(Gravity.TOP);
       topToolbar.setHorizontalGravity(Gravity.CENTER_VERTICAL);
+      topToolbar.bringToFront();
 
-      RelativeLayout.LayoutParams flashLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(44), this.dpToPixels(44));
+      RelativeLayout.LayoutParams flashLayoutParams = new RelativeLayout.LayoutParams(dp44, dp44);
       flashLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-      flashLayoutParams.setMargins(0, 0, 0, this.dpToPixels(10));
+      flashLayoutParams.setMargins(0, 0, 0, dp10);
       flashButton.setLayoutParams(flashLayoutParams);
 
-      RelativeLayout.LayoutParams libLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(44), this.dpToPixels(44));
+      RelativeLayout.LayoutParams libLayoutParams = new RelativeLayout.LayoutParams(dp44, dp44);
       libLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-      libLayoutParams.setMargins(0, 0, this.dpToPixels(10), 0);
+      libLayoutParams.setMargins(0, 0, dp10, 0);
       libButton.setLayoutParams(libLayoutParams);
 
-      int buttonsLayoutW = width - cameraPreview.getViewWidth() - dp50;
-
-      toolbar.getLayoutParams().width = buttonsLayoutW;
-      toolbar.getLayoutParams().height = RelativeLayout.LayoutParams.MATCH_PARENT;
-      toolbar.requestLayout();
+      LinearLayout.LayoutParams toolbarLayoutParams = new LinearLayout.LayoutParams(
+        dp100,
+        LinearLayout.LayoutParams.MATCH_PARENT
+      );
+      toolbarLayoutParams.leftMargin = width - dp100 - dp50;
+      toolbar.setLayoutParams(toolbarLayoutParams);
+      toolbar.setPadding(dp2, dp2, dp2, dp10);
       toolbar.setVerticalGravity(Gravity.TOP);
       toolbar.setHorizontalGravity(Gravity.RIGHT);
+      toolbar.bringToFront();
 
-      RelativeLayout.LayoutParams closeLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(44), this.dpToPixels(44));
+      RelativeLayout.LayoutParams closeLayoutParams = new RelativeLayout.LayoutParams(dp44, dp44);
       closeLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
       closeLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
       closeLayoutParams.setMargins(0, 0, this.dpToPixels(22), this.dpToPixels(22));
@@ -234,7 +267,7 @@ public class CameraViewActivity extends Activity {
       boolean isNavAtBottom = isNavAtBottom();
 
       if (flipButton != null) {
-        RelativeLayout.LayoutParams flipLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(64), this.dpToPixels(64));
+        RelativeLayout.LayoutParams flipLayoutParams = new RelativeLayout.LayoutParams(dp64, dp64);
         if (!isNavShowing && !isNavAtBottom) {
           flipLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
           flipLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
@@ -242,13 +275,13 @@ public class CameraViewActivity extends Activity {
         } else {
           flipLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
           flipLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-          flipLayoutParams.setMargins(0, 0, this.dpToPixels(15), height - (this.dpToPixels(64) / 2));
+          flipLayoutParams.setMargins(0, 0, this.dpToPixels(15), height - (dp64 / 2));
         }
 
         flipButton.setLayoutParams(flipLayoutParams);
       }
 
-      RelativeLayout.LayoutParams takeLayoutParams = new RelativeLayout.LayoutParams(this.dpToPixels(96), this.dpToPixels(96));
+      RelativeLayout.LayoutParams takeLayoutParams = new RelativeLayout.LayoutParams(dp96, dp96);
       if (!isNavShowing && !isNavAtBottom) {
         takeLayoutParams.addRule(RelativeLayout.CENTER_VERTICAL);
         takeLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
@@ -256,7 +289,7 @@ public class CameraViewActivity extends Activity {
       } else {
         takeLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
         takeLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-        takeLayoutParams.setMargins(0, 0, 0, (height / 2) - (this.dpToPixels(96) / 4));
+        takeLayoutParams.setMargins(0, 0, 0, (height / 2) - (dp96 / 4));
       }
 
       takeButton.setLayoutParams(takeLayoutParams);
@@ -285,6 +318,15 @@ public class CameraViewActivity extends Activity {
       WindowManager.LayoutParams.FLAG_FULLSCREEN);
     getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
+    dp2 = this.dpToPixels(2);
+    dp10 = this.dpToPixels(10);
+    dp25 = this.dpToPixels(25);
+    dp44 = this.dpToPixels(44);
+    dp50 = this.dpToPixels(50);
+    dp64 = this.dpToPixels(64);
+    dp96 = this.dpToPixels(96);
+    dp100 = this.dpToPixels(100);
+
     // Main container layout
     main = new LinearLayout(this);
     main.setOrientation(LinearLayout.VERTICAL);
@@ -304,24 +346,9 @@ public class CameraViewActivity extends Activity {
     cameraPreview.setId(Integer.valueOf(1));
 
     cameraView = new RelativeLayout(this);
-    RelativeLayout.LayoutParams cameraLayoutParams = new RelativeLayout.LayoutParams(
-      viewWidth,
-      viewHeight
-    );
-    cameraView.setLayoutParams(cameraLayoutParams);
-    cameraView.setVerticalGravity(Gravity.TOP);
-    cameraView.setHorizontalGravity(Gravity.LEFT);
     cameraView.addView(cameraPreview);
 
     topToolbar = new RelativeLayout(this);
-    RelativeLayout.LayoutParams topToolbarParams = new RelativeLayout.LayoutParams(
-      RelativeLayout.LayoutParams.MATCH_PARENT,
-      this.dpToPixels(48)
-    );
-    topToolbar.setLayoutParams(topToolbarParams);
-    topToolbar.setVerticalGravity(Gravity.CENTER_VERTICAL);
-    topToolbar.setHorizontalGravity(Gravity.LEFT);
-    topToolbar.bringToFront();
 
     Resources activityRes = this.getResources();
     String packageName = getApplication().getPackageName();
@@ -417,31 +444,6 @@ public class CameraViewActivity extends Activity {
     topToolbar.addView(libButton);
 
     toolbar = new RelativeLayout(this);
-    int dp100 = this.dpToPixels(100);
-    int cameraHeight = cameraPreview.getViewHeight();
-    int buttonsLayoutHeight = height - cameraHeight;
-    RelativeLayout.LayoutParams layoutParams;
-
-    if (buttonsLayoutHeight > dp100) {
-      layoutParams = new RelativeLayout.LayoutParams(
-        WindowManager.LayoutParams.MATCH_PARENT,
-        buttonsLayoutHeight
-      );
-    } else {
-      layoutParams = new RelativeLayout.LayoutParams(
-        WindowManager.LayoutParams.MATCH_PARENT,
-        dp100
-      );
-      layoutParams.topMargin = (height - (cameraHeight + this.dpToPixels(48))) - dp100;
-    }
-
-    layoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, RelativeLayout.TRUE);
-    toolbar.setLayoutParams(layoutParams);
-    toolbar.setPadding(this.dpToPixels(2), this.dpToPixels(2),
-      this.dpToPixels(2), this.dpToPixels(10));
-    toolbar.setVerticalGravity(Gravity.CENTER_VERTICAL);
-    toolbar.setHorizontalGravity(Gravity.BOTTOM);
-    toolbar.bringToFront();
 
     closeButton = new ImageButton(this);
 
@@ -565,8 +567,8 @@ public class CameraViewActivity extends Activity {
 
     setupLayout();
 
-    main.addView(topToolbar);
     main.addView(cameraView);
+    main.addView(topToolbar);
     main.addView(toolbar);
   }
 
