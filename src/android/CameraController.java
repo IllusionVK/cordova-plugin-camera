@@ -168,10 +168,25 @@ public class CameraController {
 
       int width = 640;
       int height = 480;
+      int cameraWidth = cameraPreview.getWidth();
+      int cameraHeight = cameraPreview.getHeight();
+      float ratio = (float)cameraWidth / cameraHeight;
+
       if (jpegSizes != null && 0 < jpegSizes.length) {
-        width = jpegSizes[0].getWidth();
-        height = jpegSizes[0].getHeight();
+        for (Size jpegSize : jpegSizes) {
+          int w = jpegSize.getWidth();
+          int h = jpegSize.getHeight();
+          float r1 = (float) w / h;
+          float r2 = (float) h / w;
+
+          if (r1 == ratio || r2 == ratio) {
+            width = w;
+            height = h;
+            break;
+          }
+        }
       }
+
       final ImageReader reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 2);
       List<Surface> outputSurfaces = new ArrayList<Surface>(2);
       outputSurfaces.add(reader.getSurface());
