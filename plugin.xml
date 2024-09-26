@@ -31,7 +31,7 @@
 
     <engines>
         <engine name="cordova" version=">=9.0.0"/>
-        <engine name="cordova-android" version=">=10.0.0" />
+        <engine name="cordova-android" version=">=9.0.0" />
         <engine name="cordova-ios" version=">=5.1.0" />
     </engines>
 
@@ -85,6 +85,15 @@
             </intent>
         </config-file>
 
+        <config-file target="AndroidManifest.xml" parent="/manifest/application">
+            <activity android:configChanges="orientation|screenSize" android:label="CameraViewActivity" android:name="org.apache.cordova.camera.CameraViewActivity"></activity>
+        </config-file>
+
+        <source-file src="src/android/CameraController.java" target-dir="src/org/apache/cordova/camera" />
+        <source-file src="src/android/CameraDeviceCallback.java" target-dir="src/org/apache/cordova/camera" />
+        <source-file src="src/android/CameraPreview.java" target-dir="src/org/apache/cordova/camera" />
+        <source-file src="src/android/CameraViewActivity.java" target-dir="src/org/apache/cordova/camera" />
+        <source-file src="src/android/TakePictureCallback.java" target-dir="src/org/apache/cordova/camera" />
         <source-file src="src/android/CameraLauncher.java" target-dir="src/org/apache/cordova/camera" />
         <source-file src="src/android/FileHelper.java" target-dir="src/org/apache/cordova/camera" />
         <source-file src="src/android/ExifHelper.java" target-dir="src/org/apache/cordova/camera" />
@@ -98,6 +107,20 @@
         <js-module src="www/CameraPopoverHandle.js" name="CameraPopoverHandle">
             <clobbers target="CameraPopoverHandle" />
           </js-module>
+
+        <preference name="ANDROID_SUPPORT_V4_VERSION" default="27.+"/>
+        <framework src="com.android.support:support-v4:$ANDROID_SUPPORT_V4_VERSION"/>
+
+        <resource-file src="src/android/res/drawable/circular_button.xml" target="res/drawable/circular_button.xml" />
+
+        <resource-file src="src/android/res/drawable-anydpi/ic_action_camera_flip.xml" target="res/drawable/ic_action_camera_flip.xml" />
+        <resource-file src="src/android/res/drawable-anydpi/ic_action_close.xml" target="res/drawable/ic_action_close.xml" />
+        <resource-file src="src/android/res/drawable-anydpi/ic_action_flash_auto.xml" target="res/drawable/ic_action_flash_auto.xml" />
+        <resource-file src="src/android/res/drawable-anydpi/ic_action_flash_off.xml" target="res/drawable/ic_action_flash_off.xml" />
+        <resource-file src="src/android/res/drawable-anydpi/ic_action_flash_on.xml" target="res/drawable/ic_action_flash_on.xml" />
+        <resource-file src="src/android/res/drawable-anydpi/ic_action_photo_lib.xml" target="res/drawable/ic_action_photo_lib.xml" />
+        <resource-file src="src/android/res/drawable-anydpi/ic_action_take_picture.xml" target="res/drawable/ic_action_take_picture.xml" />
+
       </platform>
 
      <!-- ios -->
@@ -119,6 +142,10 @@
          <source-file src="src/ios/CDVCamera.m" />
          <header-file src="src/ios/CDVJpegHeaderWriter.h" />
          <source-file src="src/ios/CDVJpegHeaderWriter.m" />
+         <header-file src="src/ios/UIImage+DrawBlock.h" />
+         <source-file src="src/ios/UIImage+DrawBlock.m" />
+         <header-file src="src/ios/JPSCameraButton.h" />
+         <source-file src="src/ios/JPSCameraButton.m" />
          <header-file src="src/ios/CDVExif.h" />
          <framework src="ImageIO.framework" weak="true" />
          <framework src="CoreLocation.framework" />
@@ -127,6 +154,26 @@
          <framework src="MobileCoreServices.framework" />
          <framework src="CoreGraphics.framework" />
          <framework src="AVFoundation.framework" />
+
+        <resource-file src="src/ios/res/ic_camera_alt_white.png" />
+        <resource-file src="src/ios/res/ic_camera_alt_white@2x.png" />
+        <resource-file src="src/ios/res/ic_camera_alt_white@3x.png" />
+
+        <resource-file src="src/ios/res/ic_flash_auto_white.png" />
+        <resource-file src="src/ios/res/ic_flash_auto_white@2x.png" />
+        <resource-file src="src/ios/res/ic_flash_auto_white@3x.png" />
+
+        <resource-file src="src/ios/res/ic_flash_off_white.png" />
+        <resource-file src="src/ios/res/ic_flash_off_white@2x.png" />
+        <resource-file src="src/ios/res/ic_flash_off_white@3x.png" />
+
+        <resource-file src="src/ios/res/ic_flash_on_white.png" />
+        <resource-file src="src/ios/res/ic_flash_on_white@2x.png" />
+        <resource-file src="src/ios/res/ic_flash_on_white@3x.png" />
+
+        <resource-file src="src/ios/res/ic_photo_library_white_48pt.png" />
+        <resource-file src="src/ios/res/ic_photo_library_white_48pt@2x.png" />
+        <resource-file src="src/ios/res/ic_photo_library_white_48pt@3x.png" />
 
      </platform>
 

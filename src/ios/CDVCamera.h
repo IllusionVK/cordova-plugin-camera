@@ -21,6 +21,8 @@
 #import <CoreLocation/CoreLocation.h>
 #import <CoreLocation/CLLocationManager.h>
 #import <Cordova/CDVPlugin.h>
+#import "JPSCameraButton.h"
+
 
 enum CDVDestinationType {
     DestinationTypeDataUrl = 0,
@@ -54,6 +56,8 @@ typedef NSUInteger CDVMediaType;
 @property (assign) BOOL saveToPhotoAlbum;
 @property (strong) NSDictionary* popoverOptions;
 @property (assign) UIImagePickerControllerCameraDevice cameraDirection;
+@property (assign) BOOL preview;
+@property (assign) BOOL showPhotoLibrary;
 
 @property (assign) BOOL popoverSupported;
 @property (assign) BOOL usesGeolocation;
@@ -63,7 +67,13 @@ typedef NSUInteger CDVMediaType;
 
 @end
 
-@interface CDVCameraPicker : UIImagePickerController
+@interface UIImageNRPickerController : UIImagePickerController {
+
+}
+
+@end
+
+@interface CDVCameraPicker : UIImageNRPickerController
 
 @property (strong) CDVPictureOptions* pictureOptions;
 
@@ -90,6 +100,16 @@ typedef NSUInteger CDVMediaType;
 @property (strong, nonatomic) CLLocationManager *locationManager;
 @property (strong) NSData* data;
 
+@property (strong) UIButton *flashBtn;
+@property (strong) UIButton *cameraAltBtn;
+@property (strong) UIButton *photoLibraryBtn;
+@property (strong) UIButton *cancelBtn;
+@property (strong) JPSCameraButton *takePhotoBtn;
+
+@property (strong) UIButton *flashAutoButton;
+@property (strong) UIButton *flashOnButton;
+@property (strong) UIButton *flashOffButton;
+
 /*
  * getPicture
  *
@@ -104,9 +124,9 @@ typedef NSUInteger CDVMediaType;
 - (void)cleanup:(CDVInvokedUrlCommand*)command;
 - (void)repositionPopover:(CDVInvokedUrlCommand*)command;
 
-- (void)imagePickerController:(UIImagePickerController*)picker didFinishPickingMediaWithInfo:(NSDictionary*)info;
-- (void)imagePickerController:(UIImagePickerController*)picker didFinishPickingImage:(UIImage*)image editingInfo:(NSDictionary*)editingInfo;
-- (void)imagePickerControllerDidCancel:(UIImagePickerController*)picker;
+- (void)imagePickerController:(UIImageNRPickerController*)picker didFinishPickingMediaWithInfo:(NSDictionary*)info;
+- (void)imagePickerController:(UIImageNRPickerController*)picker didFinishPickingImage:(UIImage*)image editingInfo:(NSDictionary*)editingInfo;
+- (void)imagePickerControllerDidCancel:(UIImageNRPickerController*)picker;
 - (void)navigationController:(UINavigationController *)navigationController willShowViewController:(UIViewController *)viewController animated:(BOOL)animated;
 
 - (void)locationManager:(CLLocationManager*)manager didUpdateToLocation:(CLLocation*)newLocation fromLocation:(CLLocation*)oldLocation;

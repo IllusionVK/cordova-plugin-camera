@@ -20,6 +20,7 @@
 #import "CDVCamera.h"
 #import "CDVJpegHeaderWriter.h"
 #import "UIImage+CropScaleOrientation.h"
+#import "JPSCameraButton.h"
 #import <ImageIO/CGImageProperties.h>
 #import <AssetsLibrary/ALAssetRepresentation.h>
 #import <AssetsLibrary/AssetsLibrary.h>
@@ -58,6 +59,26 @@ static NSString* toBase64(NSData* data) {
     }
 }
 
+@implementation UIImageNRPickerController
+- (BOOL)shouldAutorotate
+{
+    [super shouldAutorotate];
+    if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+        return YES;
+    }
+
+    return NO;
+}
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations{
+    if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+        return UIInterfaceOrientationMaskAll;
+    }
+
+    return UIInterfaceOrientationMaskPortrait;
+}
+@end
+
 @implementation CDVPictureOptions
 
 + (instancetype) createFromTakePictureArguments:(CDVInvokedUrlCommand*)command
@@ -82,6 +103,8 @@ static NSString* toBase64(NSData* data) {
     pictureOptions.saveToPhotoAlbum = [[command argumentAtIndex:9 withDefault:@(NO)] boolValue];
     pictureOptions.popoverOptions = [command argumentAtIndex:10 withDefault:nil];
     pictureOptions.cameraDirection = [[command argumentAtIndex:11 withDefault:@(UIImagePickerControllerCameraDeviceRear)] unsignedIntegerValue];
+    pictureOptions.preview = [[command argumentAtIndex:12 withDefault:@(YES)] boolValue];
+    pictureOptions.showPhotoLibrary = [[command argumentAtIndex:13 withDefault:@(YES)] boolValue];
 
     pictureOptions.popoverSupported = NO;
     pictureOptions.usesGeolocation = NO;
@@ -95,6 +118,7 @@ static NSString* toBase64(NSData* data) {
 @interface CDVCamera ()
 
 @property (readwrite, assign) BOOL hasPendingOperation;
+@property (readwrite, assign) BOOL selectingFromLibrary;
 
 @end
 
@@ -105,7 +129,7 @@ static NSString* toBase64(NSData* data) {
     org_apache_cordova_validArrowDirections = [[NSSet alloc] initWithObjects:[NSNumber numberWithInt:UIPopoverArrowDirectionUp], [NSNumber numberWithInt:UIPopoverArrowDirectionDown], [NSNumber numberWithInt:UIPopoverArrowDirectionLeft], [NSNumber numberWithInt:UIPopoverArrowDirectionRight], [NSNumber numberWithInt:UIPopoverArrowDirectionAny], nil];
 }
 
-@synthesize hasPendingOperation, pickerController, locationManager;
+@synthesize hasPendingOperation, selectingFromLibrary, pickerController, locationManager;
 
 - (NSURL*) urlTransformer:(NSURL*)url
 {
@@ -147,8 +171,10 @@ static NSString* toBase64(NSData* data) {
         pictureOptions.popoverSupported = [weakSelf popoverSupported];
         pictureOptions.usesGeolocation = [weakSelf usesGeolocation];
         pictureOptions.cropToSize = NO;
+        
+        NSLog(@"Start takePicture with source type: %lu", (unsigned long)pictureOptions.sourceType);
 
-        BOOL hasCamera = [UIImagePickerController isSourceTypeAvailable:pictureOptions.sourceType];
+        BOOL hasCamera = [UIImageNRPickerController isSourceTypeAvailable:pictureOptions.sourceType];
         if (!hasCamera) {
             NSLog(@"Camera.getPicture: source type %lu not available.", (unsigned long)pictureOptions.sourceType);
             CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No camera available"];
@@ -210,7 +236,100 @@ static NSString* toBase64(NSData* data) {
     // Perform UI operations on the main thread
     dispatch_async(dispatch_get_main_queue(), ^{
         CDVCameraPicker* cameraPicker = [CDVCameraPicker createFromPictureOptions:pictureOptions];
+
+        self.selectingFromLibrary = false;
         self.pickerController = cameraPicker;
+
+        if (pictureOptions.sourceType == UIImagePickerControllerSourceTypeCamera && !pictureOptions.preview) {
+            self.pickerController.showsCameraControls = false;
+            self.pickerController.navigationBarHidden = true;
+            self.pickerController.toolbarHidden = true;
+
+            if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+                [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
+                // Listen for orientation changes so that we can update the UI
+                [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(orientationChanged:) name:UIDeviceOrientationDidChangeNotification object:nil];
+            }
+
+            UIView *overlayView = [[UIView alloc]initWithFrame:CGRectMake(0, 0, self.pickerController.view.frame.size.width, self.pickerController.view.frame.size.height)];
+
+            self.flashBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+            [self.flashBtn setImage:[UIImage imageNamed:@"ic_flash_auto_white"] forState:UIControlStateNormal];
+            [self.flashBtn addTarget:self action:@selector(flashBtnWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+            [overlayView addSubview:self.flashBtn];
+
+            self.flashAutoButton = [UIButton buttonWithType:UIButtonTypeCustom];
+            [self.flashAutoButton setTitle:@"Auto" forState:UIControlStateNormal];
+            [self.flashAutoButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            [self.flashAutoButton setTitleColor:[UIColor orangeColor] forState:UIControlStateSelected];
+            [self.flashAutoButton.titleLabel setFont:[UIFont systemFontOfSize:14]];
+            [self.flashAutoButton addTarget:self action:@selector(flashAutoButtonWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+            self.flashAutoButton.alpha = 0.0f;
+            [overlayView addSubview:self.flashAutoButton];
+            
+            self.flashOnButton = [UIButton buttonWithType:UIButtonTypeCustom];
+            [self.flashOnButton setTitle:@"On" forState:UIControlStateNormal];
+            [self.flashOnButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            [self.flashOnButton setTitleColor:[UIColor orangeColor] forState:UIControlStateSelected];
+            [self.flashOnButton.titleLabel setFont:[UIFont systemFontOfSize:14]];
+            [self.flashOnButton addTarget:self action:@selector(flashOnButtonWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+            self.flashOnButton.alpha = 0.0f;
+            [overlayView addSubview:self.flashOnButton];
+            
+            self.flashOffButton = [UIButton buttonWithType:UIButtonTypeCustom];
+            [self.flashOffButton setTitle:@"Off" forState:UIControlStateNormal];
+            [self.flashOffButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            [self.flashOffButton setTitleColor:[UIColor orangeColor] forState:UIControlStateSelected];
+            [self.flashOffButton.titleLabel setFont:[UIFont systemFontOfSize:14]];
+            [self.flashOffButton addTarget:self action:@selector(flashOffButtonWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+            self.flashOffButton.alpha = 0.0f;
+            [overlayView addSubview:self.flashOffButton];
+
+            self.cameraAltBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+            [self.cameraAltBtn setImage:[UIImage imageNamed:@"ic_camera_alt_white"] forState:UIControlStateNormal];
+            [self.cameraAltBtn addTarget:self action:@selector(cameraAltWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+            [overlayView addSubview:self.cameraAltBtn];
+            
+            if (pictureOptions.showPhotoLibrary) {
+                self.photoLibraryBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+                [self.photoLibraryBtn setImage:[UIImage imageNamed:@"ic_photo_library_white_48pt"] forState:UIControlStateNormal];
+                [self.photoLibraryBtn addTarget:self action:@selector(openPhotoAlbumButtonWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+                self.photoLibraryBtn.hidden = YES;
+                [overlayView addSubview:self.photoLibraryBtn];
+            }
+
+            self.cancelBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+            [self.cancelBtn setTitle:@"Cancel" forState:UIControlStateNormal];
+            [self.cancelBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            [self.cancelBtn.titleLabel setFont:[UIFont systemFontOfSize:18]];
+            [self.cancelBtn addTarget:self action:@selector(cancelButtonWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+            self.cancelBtn.hidden = YES;
+            [overlayView addSubview:self.cancelBtn];
+            
+            self.takePhotoBtn = [JPSCameraButton buttonWithType:UIButtonTypeRoundedRect];
+            [self.takePhotoBtn addTarget:self action:@selector(takePhotoButtonWasTouched:) forControlEvents:UIControlEventTouchUpInside];
+            self.takePhotoBtn.hidden = YES;
+            [overlayView addSubview:self.takePhotoBtn];
+            
+            if ([UIImagePickerController isCameraDeviceAvailable:UIImagePickerControllerCameraDeviceFront] &&
+                [UIImagePickerController isCameraDeviceAvailable:UIImagePickerControllerCameraDeviceRear]) {
+                self.cameraAltBtn.hidden = NO;
+            } else {
+                self.cameraAltBtn.hidden = YES;
+            }
+
+            self.pickerController.showsCameraControls = NO;
+            self.pickerController.navigationBarHidden = YES;
+            self.pickerController.toolbarHidden = YES;
+            self.pickerController.cameraOverlayView = overlayView;
+            [self.pickerController setModalPresentationStyle: UIModalPresentationOverCurrentContext];
+            [self.webView bringSubviewToFront:self.pickerController.view];
+
+
+            [self updateOrientation];
+            [self updateFlashlightState];
+            [self setFlashEnable];
+        }
 
         cameraPicker.delegate = self;
         cameraPicker.callbackId = callbackId;
@@ -230,13 +349,271 @@ static NSString* toBase64(NSData* data) {
             }
             [self displayPopover:pictureOptions.popoverOptions];
             self.hasPendingOperation = NO;
+            self.cancelBtn.hidden = NO;
+            self.takePhotoBtn.hidden = NO;
+            self.photoLibraryBtn.hidden = NO;
         } else {
             cameraPicker.modalPresentationStyle = UIModalPresentationCurrentContext;
             [self.viewController presentViewController:cameraPicker animated:YES completion:^{
                 self.hasPendingOperation = NO;
+                self.cancelBtn.hidden = NO;
+                self.takePhotoBtn.hidden = NO;
+                self.photoLibraryBtn.hidden = NO;
             }];
         }
     });
+}
+
+- (void)setFlashEnable
+{
+    __weak CDVCameraPicker* cameraPicker = (CDVCameraPicker*)self.pickerController;
+
+    if ((cameraPicker.cameraDevice == UIImagePickerControllerCameraDeviceRear && [UIImagePickerController isFlashAvailableForCameraDevice:UIImagePickerControllerCameraDeviceRear]) ||
+        (cameraPicker.cameraDevice == UIImagePickerControllerCameraDeviceFront && [UIImagePickerController isFlashAvailableForCameraDevice:UIImagePickerControllerCameraDeviceFront])) {
+        self.flashBtn.hidden = NO;
+    } else {
+        self.flashBtn.hidden = YES;
+    }
+}
+
+- (void)setButtonsFramePortrait
+{
+    CGSize screenSize = [[UIScreen mainScreen] bounds].size;
+    
+    [self.pickerController.cameraOverlayView setFrame:CGRectMake(0, 0, screenSize.width, screenSize.height)];
+
+    [self.flashBtn setFrame:CGRectMake(20, 40, 44, 44)];
+    [self.flashAutoButton setFrame:CGRectMake(80, 40, 40, 30)];
+    [self.flashOnButton setFrame:CGRectMake(140, 40, 40, 30)];
+    [self.flashOffButton setFrame:CGRectMake(200, 40, 40, 30)];
+    
+    [self.cameraAltBtn setFrame:CGRectMake(screenSize.width - 44, 40, 44, 44)];
+    [self.photoLibraryBtn setFrame:CGRectMake(10, screenSize.height - 120, 48, 48)];
+    [self.cancelBtn setFrame:CGRectMake(screenSize.width - 70, screenSize.height - 120, 80, 40)];
+    [self.takePhotoBtn setFrame:CGRectMake(screenSize.width / 2 - 40, screenSize.height - 130, 80, 40)];
+    [self.flashBtn sizeToFit];
+    [self.flashAutoButton sizeToFit];
+    [self.flashOnButton sizeToFit];
+    [self.flashOffButton sizeToFit];
+    [self.cameraAltBtn sizeToFit];
+    [self.photoLibraryBtn sizeToFit];
+    [self.cancelBtn sizeToFit];
+    [self.takePhotoBtn sizeToFit];
+}
+
+- (void)setButtonsFrameLandscapeLeft
+{
+    CGSize screenSize = [[UIScreen mainScreen] bounds].size;
+    
+    [self.pickerController.cameraOverlayView setFrame:CGRectMake(0, 0, screenSize.width, screenSize.height)];
+
+    [self.flashBtn setFrame:CGRectMake(40, screenSize.height - 45, 44, 44)];
+    [self.flashAutoButton setFrame:CGRectMake(40, screenSize.height - 105, 40, 30)];
+    [self.flashOnButton setFrame:CGRectMake(40, screenSize.height - 165, 40, 30)];
+    [self.flashOffButton setFrame:CGRectMake(40, screenSize.height - 225, 40, 30)];
+    
+    [self.cameraAltBtn setFrame:CGRectMake(40, 20, 44, 44)];
+    [self.photoLibraryBtn setFrame:CGRectMake(screenSize.width - 80, screenSize.height - 55, 48, 48)];
+    [self.cancelBtn setFrame:CGRectMake(screenSize.width - 80, 30, 80, 40)];
+    [self.takePhotoBtn setFrame:CGRectMake(screenSize.width - 80, screenSize.height / 2 - 40, 80, 40)];
+
+    [self.flashBtn sizeToFit];
+    [self.flashAutoButton sizeToFit];
+    [self.flashOnButton sizeToFit];
+    [self.flashOffButton sizeToFit];
+    [self.cameraAltBtn sizeToFit];
+    [self.photoLibraryBtn sizeToFit];
+    [self.cancelBtn sizeToFit];
+    [self.takePhotoBtn sizeToFit];
+}
+
+- (void)setButtonsFrameLandscapeRight
+{
+    CGSize screenSize = [[UIScreen mainScreen] bounds].size;
+    
+    [self.pickerController.cameraOverlayView setFrame:CGRectMake(0, 0, screenSize.width, screenSize.height)];
+
+    [self.flashBtn setFrame:CGRectMake(screenSize.width - 70, screenSize.height - 45, 44, 44)];
+    [self.flashAutoButton setFrame:CGRectMake(screenSize.width - 70, screenSize.height - 105, 40, 30)];
+    [self.flashOnButton setFrame:CGRectMake(screenSize.width - 70, screenSize.height - 165, 40, 30)];
+    [self.flashOffButton setFrame:CGRectMake(screenSize.width - 70, screenSize.height - 225, 40, 30)];
+    
+    [self.cameraAltBtn setFrame:CGRectMake(screenSize.width - 70, 20, 44, 44)];
+    [self.photoLibraryBtn setFrame:CGRectMake(40, screenSize.height - 55, 48, 48)];
+    [self.cancelBtn setFrame:CGRectMake(40, 30, 80, 40)];
+    [self.takePhotoBtn setFrame:CGRectMake(40, screenSize.height / 2 - 40, 80, 40)];
+
+    [self.flashBtn sizeToFit];
+    [self.flashAutoButton sizeToFit];
+    [self.flashOnButton sizeToFit];
+    [self.flashOffButton sizeToFit];
+    [self.cameraAltBtn sizeToFit];
+    [self.photoLibraryBtn sizeToFit];
+    [self.cancelBtn sizeToFit];
+    [self.takePhotoBtn sizeToFit];
+}
+
+- (void)updateOrientation
+{
+    UIDeviceOrientation deviceOrientation = [UIDevice currentDevice].orientation;
+    
+    // Adjust camera preview to be a little bit more centered instead of adjusted to the top
+    CGSize screenSize = [[UIScreen mainScreen] bounds].size;
+    float verticalAdjustment;
+    float cameraAspectRatio = 4.0 / 3.0;
+
+    if (deviceOrientation == UIDeviceOrientationLandscapeRight || deviceOrientation == UIDeviceOrientationLandscapeLeft) {
+        float imageHeight = screenSize.height * cameraAspectRatio;
+        if (screenSize.width - imageHeight <= 54.0f) {
+            verticalAdjustment = 0;
+        } else {
+            verticalAdjustment = (screenSize.width - imageHeight) / 2.0f;
+            verticalAdjustment /= 2.0f; // A little bit upper than centered
+        }
+    } else {
+        float imageHeight = screenSize.width * cameraAspectRatio;
+        if (screenSize.height - imageHeight <= 54.0f) {
+            verticalAdjustment = 0;
+        } else {
+            verticalAdjustment = (screenSize.height - imageHeight) / 2.0f;
+            verticalAdjustment /= 2.0f; // A little bit upper than centered
+        }
+    }
+    
+    CGAffineTransform transform = self.pickerController.cameraViewTransform;
+    transform.ty = verticalAdjustment;
+    self.pickerController.cameraViewTransform = transform;
+
+    switch (deviceOrientation) {
+        case UIDeviceOrientationPortraitUpsideDown:
+            [self setButtonsFramePortrait];
+            break;
+
+        case UIDeviceOrientationLandscapeLeft:
+            [self setButtonsFrameLandscapeLeft];
+            break;
+
+        case UIDeviceOrientationLandscapeRight:
+            [self setButtonsFrameLandscapeRight];
+            break;
+
+        default:
+            [self setButtonsFramePortrait];
+            break;
+    }
+}
+
+- (void)updateFlashlightState
+{
+    self.flashAutoButton.selected = self.pickerController.cameraFlashMode == UIImagePickerControllerCameraFlashModeAuto;
+    self.flashOnButton.selected = self.pickerController.cameraFlashMode == UIImagePickerControllerCameraFlashModeOn;
+    self.flashOffButton.selected = self.pickerController.cameraFlashMode == UIImagePickerControllerCameraFlashModeOff;
+    
+    if (self.pickerController.cameraFlashMode == UIImagePickerControllerCameraFlashModeAuto) {
+        [self.flashBtn setImage:[UIImage imageNamed:@"ic_flash_auto_white"] forState:UIControlStateNormal];
+    }
+
+    if (self.pickerController.cameraFlashMode == UIImagePickerControllerCameraFlashModeOn) {
+        [self.flashBtn setImage:[UIImage imageNamed:@"ic_flash_on_white"] forState:UIControlStateNormal];
+    }
+
+    if (self.pickerController.cameraFlashMode == UIImagePickerControllerCameraFlashModeOff) {
+        [self.flashBtn setImage:[UIImage imageNamed:@"ic_flash_off_white"] forState:UIControlStateNormal];
+    }
+}
+
+- (void)toggleFlashModeButtons {
+    if (self.flashAutoButton.alpha == 0.0f) {
+        self.flashAutoButton.alpha = 1.0f;
+        self.flashOnButton.alpha = 1.0f;
+        self.flashOffButton.alpha = 1.0f;
+        self.cameraAltBtn.alpha = 0.0f;
+    } else {
+        self.flashAutoButton.alpha = 0.0f;
+        self.flashOnButton.alpha = 0.0f;
+        self.flashOffButton.alpha = 0.0f;
+        self.cameraAltBtn.alpha = 1.0f;
+    }
+    
+    [self updateFlashlightState];
+}
+
+- (void)orientationChanged:(NSNotification*)sender
+{
+    NSTimeInterval delayInSeconds = 1.0;
+    dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
+    dispatch_after(popTime, dispatch_get_main_queue(), ^(void){
+        [self updateOrientation];
+    });
+}
+
+-(void)flashBtnWasTouched:(UIButton*)sender {
+    [self toggleFlashModeButtons];
+}
+
+-(void)flashAutoButtonWasTouched:(UIButton*)sender {
+    self.pickerController.cameraFlashMode = UIImagePickerControllerCameraFlashModeAuto;
+    [self toggleFlashModeButtons];
+}
+
+-(void)flashOnButtonWasTouched:(UIButton*)sender {
+    self.pickerController.cameraFlashMode = UIImagePickerControllerCameraFlashModeOn;
+    [self toggleFlashModeButtons];
+}
+
+-(void)flashOffButtonWasTouched:(UIButton*)sender {
+    self.pickerController.cameraFlashMode = UIImagePickerControllerCameraFlashModeOff;
+    [self toggleFlashModeButtons];
+}
+
+-(void)cancelButtonWasTouched:(UIButton*)sender {
+    __weak CDVCameraPicker* cameraPicker = (CDVCameraPicker*)self.pickerController;
+
+    dispatch_block_t invoke = ^ (void) {
+        NSString* callbackId = self.pickerController.callbackId;
+        CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"no image selected"];   // error callback expects string ATM
+        [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+
+        self.hasPendingOperation = NO;
+        self.pickerController = nil;
+        self.data = nil;
+        self.metadata = nil;
+    };
+
+    [[cameraPicker presentingViewController] dismissViewControllerAnimated:YES completion:invoke];
+}
+
+-(void)takePhotoButtonWasTouched:(UIButton*)sender {
+    __weak CDVCameraPicker* cameraPicker = (CDVCameraPicker*)self.pickerController;
+
+    [cameraPicker takePicture];
+}
+
+- (void)openPhotoAlbumButtonWasTouched:(UIButton*)sender
+{
+    __weak CDVCameraPicker* cameraPicker = (CDVCameraPicker*)self.pickerController;
+
+    CDVCameraPicker* imagePickerController = [CDVCameraPicker createFromPictureOptions:cameraPicker.pictureOptions];
+
+    imagePickerController.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
+    imagePickerController.callbackId = cameraPicker.callbackId;
+    imagePickerController.pictureOptions = cameraPicker.pictureOptions;
+    self.selectingFromLibrary = true;
+    imagePickerController.delegate = self;
+
+    [cameraPicker presentViewController:imagePickerController animated:YES completion:nil];
+}
+
+- (void)cameraAltWasTouched:(UIButton*)sender {
+    __weak CDVCameraPicker* cameraPicker = (CDVCameraPicker*)self.pickerController;
+
+    if (cameraPicker.cameraDevice == UIImagePickerControllerCameraDeviceFront) {
+        cameraPicker.cameraDevice = UIImagePickerControllerCameraDeviceRear;
+    } else {
+        cameraPicker.cameraDevice = UIImagePickerControllerCameraDeviceFront;
+    }
+
+    [self setFlashEnable];
 }
 
 - (void)sendNoPermissionResult:(NSString*)callbackId
@@ -300,7 +677,7 @@ static NSString* toBase64(NSData* data) {
 
 - (void)navigationController:(UINavigationController *)navigationController willShowViewController:(UIViewController *)viewController animated:(BOOL)animated
 {
-    if([navigationController isKindOfClass:[UIImagePickerController class]]){
+    if([navigationController isKindOfClass:[UIImageNRPickerController class]]){
         
         // If popoverWidth and popoverHeight are specified and are greater than 0, then set popover size, else use apple's default popoverSize
         NSDictionary* options = self.pickerController.pictureOptions.popoverOptions;
@@ -314,7 +691,7 @@ static NSString* toBase64(NSData* data) {
         }
         
         
-        UIImagePickerController* cameraPicker = (UIImagePickerController*)navigationController;
+        UIImageNRPickerController* cameraPicker = (UIImageNRPickerController*)navigationController;
 
         if(![cameraPicker.mediaTypes containsObject:(NSString*)kUTTypeImage]){
             [viewController.navigationItem setTitle:NSLocalizedString(@"Videos", nil)];
@@ -406,7 +783,7 @@ static NSString* toBase64(NSData* data) {
                         }
                         [[self locationManager] startUpdatingLocation];
                     }
-                data = nil;
+                // data = nil;
                 }
             } else if (pickerController.sourceType == UIImagePickerControllerSourceTypePhotoLibrary) {
                 PHAsset* asset = [info objectForKey:@"UIImagePickerControllerPHAsset"];
@@ -648,7 +1025,7 @@ static NSString* toBase64(NSData* data) {
     return [[NSURL fileURLWithPath:copyMoviePath] absoluteString];
 }
 
-- (void)imagePickerController:(UIImagePickerController*)picker didFinishPickingMediaWithInfo:(NSDictionary*)info
+- (void)imagePickerController:(UIImageNRPickerController*)picker didFinishPickingMediaWithInfo:(NSDictionary*)info
 {
     __weak CDVCameraPicker* cameraPicker = (CDVCameraPicker*)picker;
     __weak CDVCamera* weakSelf = self;
@@ -659,10 +1036,15 @@ static NSString* toBase64(NSData* data) {
         NSString* mediaType = [info objectForKey:UIImagePickerControllerMediaType];
         if ([mediaType isEqualToString:(NSString*)kUTTypeImage]) {
             [weakSelf resultForImage:cameraPicker.pictureOptions info:info completion:^(CDVPluginResult* res) {
-                if (![self usesGeolocation] || picker.sourceType != UIImagePickerControllerSourceTypeCamera) {
+                if (![weakSelf usesGeolocation] || picker.sourceType != UIImagePickerControllerSourceTypeCamera) {
                     [weakSelf.commandDelegate sendPluginResult:res callbackId:cameraPicker.callbackId];
                     weakSelf.hasPendingOperation = NO;
-                    weakSelf.pickerController = nil;
+                    if (!weakSelf.selectingFromLibrary) {
+                        weakSelf.pickerController = nil;
+                    } else {
+                        [[weakSelf.pickerController presentingViewController] dismissViewControllerAnimated:YES completion:nil];
+                        weakSelf.pickerController = nil;
+                    }
                 }
             }];
         }
@@ -670,7 +1052,12 @@ static NSString* toBase64(NSData* data) {
             result = [weakSelf resultForVideo:info];
             [weakSelf.commandDelegate sendPluginResult:result callbackId:cameraPicker.callbackId];
             weakSelf.hasPendingOperation = NO;
-            weakSelf.pickerController = nil;
+            if (!weakSelf.selectingFromLibrary) {
+                weakSelf.pickerController = nil;
+            } else {
+                [[weakSelf.pickerController presentingViewController] dismissViewControllerAnimated:YES completion:nil];
+                weakSelf.pickerController = nil;
+            }
         }
     };
 
@@ -685,14 +1072,14 @@ static NSString* toBase64(NSData* data) {
 }
 
 // older api calls newer didFinishPickingMediaWithInfo
-- (void)imagePickerController:(UIImagePickerController*)picker didFinishPickingImage:(UIImage*)image editingInfo:(NSDictionary*)editingInfo
+- (void)imagePickerController:(UIImageNRPickerController*)picker didFinishPickingImage:(UIImage*)image editingInfo:(NSDictionary*)editingInfo
 {
     NSDictionary* imageInfo = [NSDictionary dictionaryWithObject:image forKey:UIImagePickerControllerOriginalImage];
 
     [self imagePickerController:picker didFinishPickingMediaWithInfo:imageInfo];
 }
 
-- (void)imagePickerControllerDidCancel:(UIImagePickerController*)picker
+- (void)imagePickerControllerDidCancel:(UIImageNRPickerController*)picker
 {
     __weak CDVCameraPicker* cameraPicker = (CDVCameraPicker*)picker;
     __weak CDVCamera* weakSelf = self;
@@ -701,15 +1088,19 @@ static NSString* toBase64(NSData* data) {
         CDVPluginResult* result;
         if (picker.sourceType == UIImagePickerControllerSourceTypeCamera && [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo] != AVAuthorizationStatusAuthorized) {
             result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"has no access to camera"];
+            [weakSelf.commandDelegate sendPluginResult:result callbackId:cameraPicker.callbackId];
         } else {
-            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No Image Selected"];
+        //    Do not respond if user clicks the cancel button on the photo selection dialog
+        //    result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No Image Selected"];
         }
 
 
-        [weakSelf.commandDelegate sendPluginResult:result callbackId:cameraPicker.callbackId];
+    //    [weakSelf.commandDelegate sendPluginResult:result callbackId:cameraPicker.callbackId];
 
         weakSelf.hasPendingOperation = NO;
-        weakSelf.pickerController = nil;
+        if (!weakSelf.selectingFromLibrary) {
+            weakSelf.pickerController = nil;
+        }
     };
 
     [[cameraPicker presentingViewController] dismissViewControllerAnimated:YES completion:invoke];
@@ -894,13 +1285,17 @@ static NSString* toBase64(NSData* data) {
         // We can only set the camera device if we're actually using the camera.
         cameraPicker.cameraDevice = pictureOptions.cameraDirection;
     } else if (pictureOptions.mediaType == MediaTypeAll) {
-        cameraPicker.mediaTypes = [UIImagePickerController availableMediaTypesForSourceType:cameraPicker.sourceType];
+        cameraPicker.mediaTypes = [UIImageNRPickerController availableMediaTypesForSourceType:cameraPicker.sourceType];
     } else {
         NSArray* mediaArray = @[(NSString*)(pictureOptions.mediaType == MediaTypeVideo ? kUTTypeMovie : kUTTypeImage)];
         cameraPicker.mediaTypes = mediaArray;
     }
 
     return cameraPicker;
+}
+
+- (void)dealloc {
+  NSLog(@"dealloc ...");
 }
 
 @end

@@ -268,6 +268,7 @@ Optional parameters to customize the camera settings.
 | saveToPhotoAlbum | <code>Boolean</code> |  | Save the image to the photo album on the device after capture. |
 | popoverOptions | <code>[CameraPopoverOptions](#module_CameraPopoverOptions)</code> |  | iOS-only options that specify popover location in iPad. |
 | cameraDirection | <code>[Direction](#module_Camera.Direction)</code> | <code>BACK</code> | Choose the camera to use (front- or back-facing). |
+| preview | <code>Boolean</code> | <code>false</code> | Allow to disable the preview screen after capturing an image |
 
 ---
 
